@@ -8,6 +8,7 @@ import differentialsRoute from "./routes/differentials.js";
 import xgiRoute from "./routes/xgi.js";
 import risersRoute from "./routes/risers.js";
 import rotationRoute from "./routes/rotation.js";
+import trendsRoute from "./routes/trends.js";
 
 // --- Fixtures (befintlig + ny heatmap) ---
 import fixturesRoute from "./routes/fixtures.js";
@@ -19,6 +20,7 @@ import congestionRoute from "./routes/congestion.js";
 import stacksRoute from "./routes/stacks.js";
 import alertsRoute from "./routes/alerts.js";
 import compareRoute from "./routes/compare.js";
+import playerSearchRoute from "./routes/playerSearch.js";
 import userteamRoute from "./routes/userteam.js";
 import plannerRoute from "./routes/planner.js";
 import metaRoute from "./routes/meta.js";
@@ -39,6 +41,8 @@ app.use("/players/xgi-leaders", xgiRoute);
 app.use("/players/risers", risersRoute);
 app.use("/players/rotation-risks", rotationRoute);
 app.use("/players/pricewatch", pricewatchRoute);
+app.use("/players/trends", trendsRoute);
+app.use("/players/search", playerSearchRoute);
 
 // Generell players-lista
 app.use("/players", playersRoute);
