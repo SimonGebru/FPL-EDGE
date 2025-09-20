@@ -1,3 +1,4 @@
+// services/metricsPipeline.js
 import "dotenv/config";
 import fetch from "node-fetch";
 import { readFile, writeFile } from "node:fs/promises";
@@ -23,7 +24,6 @@ async function fetchJson(url) {
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.json();
 }
-
 async function fetchElementSummary(playerId) {
   return fetchJson(`${FPL_BASE}/element-summary/${playerId}/`);
 }
@@ -55,21 +55,36 @@ async function main() {
   const positions = bootstrap.element_types || [];
   const events    = bootstrap.events || [];
 
-  const teamsById   = Object.fromEntries(teams.map(t => [t.id, t]));
-  const posById     = Object.fromEntries(positions.map(p => [p.id, p]));
-  const defenceRanges = computeDefenceRanges(teams);
+  const teamsById      = Object.fromEntries(teams.map(t => [t.id, t]));
+  const posById        = Object.fromEntries(positions.map(p => [p.id, p]));
+  const defenceRanges  = computeDefenceRanges(teams);
 
-  const currentEvent =
-    events.find(e => e.is_current) ??
-    events.find(e => e.is_next) ??
-    events[0];
+  // --- Robust bestämning av "nuvarande/kommande" GW --------------------------
+  // Prioritet:
+  // 1) Närmast kommande deadline (deadline_time > now)
+  // 2) Fallback: is_next
+  // 3) Fallback: is_current
+  // 4) Fallback: sista eventet
+  const now = new Date();
+  const byTime = (events || [])
+    .filter(e => e.deadline_time)
+    .map(e => ({ ...e, _deadline: new Date(e.deadline_time) }))
+    .filter(e => e._deadline > now)
+    .sort((a, b) => a._deadline - b._deadline);
+
+  let currentEvent =
+    byTime[0] ||
+    (events || []).find(e => e.is_next) ||
+    (events || []).find(e => e.is_current) ||
+    (events || [])[events.length - 1];
+
   const currentGW = currentEvent?.id ?? 1;
 
   // --- Urval: bredare & smartare --------------------------------------------
   const scored = players.map(p => {
     const own     = num(p.selected_by_percent);
-    const fplForm = num(p.form);          // FPL:s egna formtal (sträng -> siffra)
-    const minutes = p.minutes || 0;       // säsongens totala minuter
+    const fplForm = num(p.form);
+    const minutes = p.minutes || 0;
     const mix = fplForm * 2 + Math.min(minutes / 90, 5) - own * 0.05;
     return { ...p, __own: own, __mix: mix };
   });
@@ -118,7 +133,7 @@ async function main() {
     const history = sum?.history ?? [];
 
     // Form + minutes risk + FDR
-    const formScore  = computeFormScoreFromHistory(history);
+    const formScore   = computeFormScoreFromHistory(history);
     const nextTeamFix = nextFixturesByTeamId[p.team] ?? [];
     const minutesRisk = computeMinutesRisk(history, p, nextTeamFix);
     const fdrAttackNext3 = attackFDRForTeamNextN(
@@ -130,7 +145,7 @@ async function main() {
 
     // Transfers/price (denna GW)
     const netTransfersEvent = (p.transfers_in_event || 0) - (p.transfers_out_event || 0);
-    const momentumScore     = Math.round((netTransfersEvent / 1000) * 100) / 100; // per 1k
+    const momentumScore     = Math.round((netTransfersEvent / 1000) * 100) / 100; // per 1k managers
     const priceChangeEvent  = p.cost_change_event || 0; // +1 = +0.1
 
     metrics.push({
@@ -157,12 +172,19 @@ async function main() {
   }
 
   const outPath = resolve(DATA_DIR, "metrics.json");
-  await writeFile(outPath, JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    currentGW,
-    count: metrics.length,
-    metrics
-  }, null, 2));
+  await writeFile(
+    outPath,
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        currentGW,
+        count: metrics.length,
+        metrics
+      },
+      null,
+      2
+    )
+  );
 
   console.log(`Wrote metrics to /data/metrics.json for GW ${currentGW} (players: ${metrics.length})`);
 }

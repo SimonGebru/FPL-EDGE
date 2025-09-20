@@ -7,7 +7,8 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "fetch:data": "node scripts/fetchFplData.js",
-    "build:metrics": "node services/metricsPipeline.js"
+    "build:metrics": "node services/metricsPipeline.js",
+    "refresh:data": "node scripts/fetchFplData.js && node services/metricsPipeline.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
