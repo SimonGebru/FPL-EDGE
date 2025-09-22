@@ -113,7 +113,7 @@ export const api = {
         qVal = String(usp.get('q') || '').trim();
       }
 
-      // Ingen q → kortslut (slipper 400 + overlay)
+      
       if (!qVal) return Promise.resolve({ ok: true, results: [] });
 
       return get(`${API_BASE}/players/search?${qs}`, fetchOpts);
@@ -142,5 +142,19 @@ export const api = {
       ? ids
       : String(ids).split(',').map(s => Number(s.trim())).filter(Boolean);
     return get(`${API_BASE}/compare?ids=${arr.join(',')}`);
+  },
+
+  
+  user: {
+   
+    importFpl: (entry) =>
+      get(`${API_BASE}/user/team/import-fpl?entry=${encodeURIComponent(entry)}`),
+  
+    
+    team: (entryId, gw) => {
+      const qs = new URLSearchParams({ entryId: String(entryId) });
+      if (gw != null) qs.set('gw', String(gw));
+      return get(`${API_BASE}/user/team?${qs.toString()}`);
+    },
   },
 };
