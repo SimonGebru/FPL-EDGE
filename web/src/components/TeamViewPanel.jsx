@@ -2,6 +2,7 @@
 import React from 'react';
 import { api } from '../lib/api';
 import SearchBox from './SearchBox';
+import { useUserTeam } from '../context/UserTeamContext';   // ⬅️ NYTT
 
 function Pill({ children }) {
   return (
@@ -48,7 +49,10 @@ function LineupTable({ title, players = [] }) {
 }
 
 export default function TeamViewPanel() {
-  // Vi lagrar fulla spelare-objekt här (inte bara ID) för bättre UX.
+  // Importerat lag från context
+  const { team, hasTeam, playerIds } = useUserTeam();   // ⬅️ NYTT
+
+  // Manuellt tillagda spelare
   const [picked, setPicked] = React.useState([]);   // [{id, web_name, ...}]
   const ids = React.useMemo(() => picked.map(p => p.id), [picked]);
 
@@ -64,13 +68,11 @@ export default function TeamViewPanel() {
   async function addIdFromInput(raw) {
     const n = Number(String(raw || '').trim());
     if (!n) return;
-    // Slå upp spelaren via /compare (återanvänder din befintliga endpoint för att få ett komplett objekt)
     try {
       const r = await api.compare([n]);
       const p = (r.players || r.comparison || []).find(x => x.id === n) || (r.players || r.comparison || [])[0];
       if (p?.id) addPlayer(p);
     } catch {
-      // Om lookup failar, lägg åtminstone in en “placeholder” med id
       setPicked(prev => prev.find(x => x.id === n) ? prev : [...prev, { id: n, web_name: `#${n}`, team: '—', position: '—' }]);
     }
   }
@@ -79,6 +81,24 @@ export default function TeamViewPanel() {
     setPicked(prev => prev.filter(x => x.id !== id));
   }
 
+  // ⬇️ NYTT: analysera mitt riktiga lag
+  async function analyzeMyTeam() {
+    if (!hasTeam || playerIds.length < 11) {
+      setErr(new Error('Importera ett lag med minst 11 spelare först.'));
+      return;
+    }
+    setLoading(true); setErr(null);
+    try {
+      const out = await api.team.analyze({ squad: playerIds });
+      setRes(out);
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Befintlig analys
   async function analyze() {
     if (ids.length < 11) {
       setErr(new Error('Lägg till minst 11 spelare innan analys.'));
@@ -103,10 +123,9 @@ export default function TeamViewPanel() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {/* Använd nya SearchBox med fallback-lista */}
         <SearchBox
           placeholder="Search players to add…"
-          position=""     // kan sättas till "Forward" osv om du vill begränsa
+          position=""
           limit={8}
           onSelect={addPlayer}
         />
@@ -124,6 +143,15 @@ export default function TeamViewPanel() {
           />
           <button onClick={analyze} className="px-3 py-2 rounded-lg bg-emerald-600 text-white">
             Analyze
+          </button>
+
+          {/* ⬇️ NYTT: knapp för ditt riktiga lag */}
+          <button
+            onClick={analyzeMyTeam}
+            disabled={!hasTeam}
+            className={`px-3 py-2 rounded-lg ${hasTeam ? 'bg-blue-600 text-white' : 'bg-neutral-800 text-neutral-500'}`}
+          >
+            Use My Team
           </button>
         </div>
       </div>
