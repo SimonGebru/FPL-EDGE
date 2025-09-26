@@ -4,9 +4,32 @@ import React from 'react';
 const STORAGE_KEY = 'userTeam';
 const UserTeamContext = React.createContext(null);
 
-// Normalisera ett pick från olika källor (id eller element, is_vice vs is_vice_captain, etc)
+// Normalisera ett pick från olika källor (id/element, is_vice vs is_vice_captain, etc)
+// ⬇️ Uppdaterad: behåll även availability (flag/news)
+// Normalisera ett pick från olika källor (id/element, is_vice vs is_vice_captain, etc)
+// + robust availability med både news_added/newsAt, samt chanceNext + boolean-flaggor.
 function normalizePick(p = {}) {
   const element = Number(p.element ?? p.id ?? 0);
+
+  // availability kan komma i lite olika former – mappa ihop dem
+  const availIn = p.availability || null;
+  const availability = availIn ? {
+    flag: availIn.flag ?? null,                 // 'red' | 'yellow' | 'ok'
+    news: availIn.news ?? '',                   // text
+    news_added: availIn.news_added ?? availIn.newsAt ?? null, // stöd båda nycklarna
+    raw_status: availIn.raw_status ?? availIn.status ?? null, // original 'a'/'d'/'i'/'s'...
+    chanceNext: typeof availIn.chanceNext === 'number'
+      ? availIn.chanceNext
+      : (typeof availIn.chance_of_playing_next_round === 'number'
+          ? availIn.chance_of_playing_next_round
+          : null),
+    // boolean-hjälpare om backend skickat dem
+    isInjured: !!availIn.isInjured,
+    isSuspended: !!availIn.isSuspended,
+    isDoubtful: !!availIn.isDoubtful,
+    isUnavailable: !!availIn.isUnavailable,
+  } : null;
+
   return {
     element,
     web_name: p.web_name ?? '',
@@ -17,6 +40,7 @@ function normalizePick(p = {}) {
     buy_price: p.buy_price ?? null,
     sell_price: p.sell_price ?? null,
     now_cost: p.now_cost ?? null,
+    availability,
   };
 }
 
@@ -28,7 +52,7 @@ export function UserTeamProvider({ children }) {
     playerName: null,
     bank: null,   // tenths (från FPL) – vi exponerar även itb i m
     itb: null,    // i miljoner
-    picks: [],    // [{ element, web_name, team, position, is_captain, is_vice, buy_price, sell_price }]
+    picks: [],    // [{ element, web_name, team, position, is_captain, is_vice, buy_price, sell_price, availability }]
     captainElement: null,
     viceElement: null,
     lastImportedAt: null,
@@ -156,7 +180,7 @@ export function UserTeamProvider({ children }) {
     [state.picks]
   );
 
-  // === NYTT: härleder hasTeam + bygger kompakt team-objekt ===
+  // === Härleder hasTeam + bygger kompakt team-objekt ===
   const hasTeam = React.useMemo(
     () => !!(state.entryId && Array.isArray(state.picks) && state.picks.length >= 1),
     [state.entryId, state.picks]

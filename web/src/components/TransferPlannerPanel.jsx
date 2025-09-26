@@ -132,7 +132,9 @@ export default function TransferPlannerPanel() {
             {myTeamEnabled ? (
               (team?.picks || []).map(p => {
                 const pid = pickId(p);
-                const label = `${p.web_name || `#${pid}`} · ${p.team ?? ''} · ${p.position ?? ''}`;
+                const label = `${p.web_name || `#${pid}`} · ${p.team ?? ''} · ${p.position ?? ''}`
+                  + (p.availability?.flag === 'red' ? ' (INJ/SUS)' :
+                     p.availability?.flag === 'yellow' ? ' (Doubtful)' : '');
                 return <option key={pid} value={pid}>{label}</option>;
               })
             ) : null}

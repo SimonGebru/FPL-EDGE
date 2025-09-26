@@ -13,6 +13,7 @@ import { UserTeamProvider, useUserTeam } from '../context/UserTeamContext'
 import { LayoutProvider, useLayout } from '../context/LayoutContext'
 import DraggableGrid from '../components/DraggableGrid'
 import WidgetShell from '../components/WidgetShell'
+import DockTray from '../components/DockTray' // ⬅️ TRAY
 
 import { api, API_BASE } from '../lib/api'
 
@@ -31,7 +32,6 @@ import MyTeamPanel from '../components/MyTeamPanel'
 
 /* ----------------------------- Fast top-block ----------------------------- */
 function ImportBlock(){
-  // Koppla ImportTeamBar till context (så allt nedströms får laget)
   const { entryId, setFromImport } = useUserTeam();
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState(null);
@@ -71,22 +71,47 @@ function ImportBlock(){
   );
 }
 
+/* ------------------------------- GW Banner ------------------------------- */
+// Visar läget för nuvarande vy: aktuell GW, draft (nästa GW) eller senast färdiga GW.
+// Placeras efter <header> och före <DockTray /> i render-trädet.
+function GwBanner(){
+  const { gw, gwKind, deadlineTime } = useUserTeam(); // kräver att UserTeamContext exponerar dessa
+  if (!gwKind) return null;
+
+  const label =
+    gwKind === 'current'  ? `Aktuell GW ${gw}` :
+    gwKind === 'next'     ? `Draft (nästa GW ${gw})` :
+    gwKind === 'finished' ? `Senast färdiga GW ${gw}` :
+                            `GW ${gw}`;
+
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm flex items-center justify-between">
+      <div className="text-neutral-200">{label}</div>
+      {deadlineTime && (
+        <div className="text-xs text-neutral-400">
+          Deadline: {new Date(deadlineTime).toLocaleString()}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* --------------------------- Widget-registry (DND) --------------------------- */
 // OBS: ID:na här bör matcha DEFAULT_ORDER i LayoutContext.jsx
 const WIDGETS = {
-  captain:          { title: 'Captain picks',            render: (key) => <CaptainSection key={`cap-${key}`} /> },
-  teamView:         { title: 'Team View (start/bench/captain)', render: () => <TeamViewPanel /> },
-  differentials:    { title: 'Hidden gems (Differentials)',     render: (key) => <DifferentialsSection key={`diff-${key}`} /> },
-  transferStrategy: { title: 'Transfer Strategy (budget → best buys)', render: () => <TransferStrategyPanel /> },
-  transferPlanner:  { title: 'Transfer Planner (1 move EV)',    render: () => <TransferPlannerPanel /> },
-  captainMC:        { title: 'Captaincy Monte Carlo',           render: () => <CaptainMonteCarloPanel /> },
-  heatmap:          { title: 'Fixture heatmap',                 render: (key) => <HeatmapSection key={`heat-${key}`} /> },
-  priceWatch:       { title: 'Price Watch',                     render: (key) => <PriceWatchSection key={`pw-${key}`} /> },
-  xgi:              { title: 'xGI Leaders',                     render: (key) => <XGISection key={`xgi-${key}`} /> },
-  trends:           { title: 'Trends',                          render: (key) => <TrendsSection key={`tr-${key}`} /> },
-  congestion:       { title: 'Team Congestion',                 render: (key) => <CongestionSection key={`cg-${key}`} /> },
-  ownership:        { title: 'Ownership Shield (template risk)',render: () => <OwnershipShield /> },
-  compare:          { title: 'Compare players (what-if)',       render: () => <CompareSection /> },
+  captain:          { title: 'Captain picks',                         render: (key) => <CaptainSection key={`cap-${key}`} /> },
+  teamView:         { title: 'Team View (start/bench/captain)',       render: () => <TeamViewPanel /> },
+  differentials:    { title: 'Hidden gems (Differentials)',           render: (key) => <DifferentialsSection key={`diff-${key}`} /> },
+  transferStrategy: { title: 'Transfer Strategy (budget → best buys)',render: () => <TransferStrategyPanel /> },
+  transferPlanner:  { title: 'Transfer Planner (1 move EV)',          render: () => <TransferPlannerPanel /> },
+  captainMC:        { title: 'Captaincy Monte Carlo',                 render: () => <CaptainMonteCarloPanel /> },
+  heatmap:          { title: 'Fixture heatmap',                       render: (key) => <HeatmapSection key={`heat-${key}`} /> },
+  priceWatch:       { title: 'Price Watch',                           render: (key) => <PriceWatchSection key={`pw-${key}`} /> },
+  xgi:              { title: 'xGI Leaders',                           render: (key) => <XGISection key={`xgi-${key}`} /> },
+  trends:           { title: 'Trends',                                render: (key) => <TrendsSection key={`tr-${key}`} /> },
+  congestion:       { title: 'Team Congestion',                       render: (key) => <CongestionSection key={`cg-${key}`} /> },
+  ownership:        { title: 'Ownership Shield (template risk)',      render: () => <OwnershipShield /> },
+  compare:          { title: 'Compare players (what-if)',             render: () => <CompareSection /> },
 };
 
 function WidgetsArea({ reloadTick }){
@@ -167,6 +192,12 @@ export default function App(){
                 </div>
               </div>
             </header>
+
+            {/* === GW-status/banner (NY) === */}
+            <GwBanner />
+
+            {/* === Dock/Tray för gömda widgets – HÖGST UPP, ej sticky === */}
+            <DockTray />
 
             {/* Fast block högst upp: Import + direkt lagvy */}
             <ImportBlock />

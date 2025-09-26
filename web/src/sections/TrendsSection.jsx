@@ -3,7 +3,7 @@ import Section from '../components/Section'
 import { api } from '../lib/api'
 
 export default function TrendsSection(){
-  const [params, setParams] = React.useState({ direction: 'both', limit: 20 })
+  const [params, setParams] = React.useState({ direction: 'both', limit: 5 })
   const [data, setData] = React.useState(null)
   const [loading, setLoading] = React.useState(false)
   const [err, setErr] = React.useState(null)

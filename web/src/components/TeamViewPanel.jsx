@@ -1,8 +1,7 @@
-// web/src/components/TeamViewPanel.jsx
 import React from 'react';
 import { api } from '../lib/api';
 import SearchBox from './SearchBox';
-import { useUserTeam } from '../context/UserTeamContext';   // ⬅️ NYTT
+import { useUserTeam } from '../context/UserTeamContext';
 
 function Pill({ children }) {
   return (
@@ -10,6 +9,15 @@ function Pill({ children }) {
       {children}
     </span>
   );
+}
+
+function statusCell(av) {
+  const flag = av?.flag || null;
+  const title = av?.news || undefined;
+  if (flag === 'red')    return <span className="text-rose-400"   title={title}>INJ/SUS</span>;
+  if (flag === 'yellow') return <span className="text-amber-400"  title={title}>Doubtful</span>;
+  if (flag === 'ok')     return <span className="text-emerald-400" title={title}>Fit</span>;
+  return <span className="text-neutral-500">—</span>;
 }
 
 function LineupTable({ title, players = [] }) {
@@ -26,19 +34,21 @@ function LineupTable({ title, players = [] }) {
               <th className="text-right py-2 pr-4">Form</th>
               <th className="text-right py-2 pr-4">xGI/90</th>
               <th className="text-right py-2 pr-4">FDR</th>
-              <th className="text-right py-2 pr-0">Start%</th>
+              <th className="text-right py-2 pr-4">Start%</th>
+              <th className="text-right py-2 pr-0">Status</th>
             </tr>
           </thead>
           <tbody>
             {players.map((p) => (
-              <tr key={p.id} className="border-t border-neutral-800">
+              <tr key={p.id ?? p.element} className="border-t border-neutral-800">
                 <td className="py-2 pr-4">{p.web_name}</td>
                 <td className="py-2 pr-4">{p.team}</td>
                 <td className="py-2 pr-4">{p.position}</td>
                 <td className="py-2 pr-4 text-right">{Math.round(p.formScore ?? 0)}</td>
                 <td className="py-2 pr-4 text-right">{p.xGI90?.toFixed?.(2) ?? '–'}</td>
                 <td className="py-2 pr-4 text-right">{p.fdrAttackNext3 ?? '–'}</td>
-                <td className="py-2 pr-0 text-right">{Math.round((p.minutesRisk ?? 0) * 100)}%</td>
+                <td className="py-2 pr-4 text-right">{Math.round((p.minutesRisk ?? 0) * 100)}%</td>
+                <td className="py-2 pr-0 text-right">{statusCell(p.availability)}</td>
               </tr>
             ))}
           </tbody>
@@ -50,7 +60,7 @@ function LineupTable({ title, players = [] }) {
 
 export default function TeamViewPanel() {
   // Importerat lag från context
-  const { team, hasTeam, playerIds } = useUserTeam();   // ⬅️ NYTT
+  const { team, hasTeam, playerIds } = useUserTeam();
 
   // Manuellt tillagda spelare
   const [picked, setPicked] = React.useState([]);   // [{id, web_name, ...}]
@@ -81,7 +91,6 @@ export default function TeamViewPanel() {
     setPicked(prev => prev.filter(x => x.id !== id));
   }
 
-  // ⬇️ NYTT: analysera mitt riktiga lag
   async function analyzeMyTeam() {
     if (!hasTeam || playerIds.length < 11) {
       setErr(new Error('Importera ett lag med minst 11 spelare först.'));
@@ -90,7 +99,16 @@ export default function TeamViewPanel() {
     setLoading(true); setErr(null);
     try {
       const out = await api.team.analyze({ squad: playerIds });
-      setRes(out);
+      // Försök att injicera availability (om id matchar picks i context)
+      const byId = new Map((team?.picks || []).map(p => [Number(p.element), p.availability || null]));
+      const inject = (arr=[]) => arr.map(x => ({ ...x, availability: byId.get(Number(x.id ?? x.element)) || x.availability || null }));
+      setRes({
+        ...out,
+        startXI: inject(out.startXI),
+        bench: inject(out.bench),
+        captain: out.captain ? { ...out.captain, availability: byId.get(Number(out.captain.id)) || out.captain.availability || null } : null,
+        vice: out.vice ? { ...out.vice, availability: byId.get(Number(out.vice.id)) || out.vice.availability || null } : null,
+      });
     } catch (e) {
       setErr(e);
     } finally {
@@ -98,7 +116,6 @@ export default function TeamViewPanel() {
     }
   }
 
-  // Befintlig analys
   async function analyze() {
     if (ids.length < 11) {
       setErr(new Error('Lägg till minst 11 spelare innan analys.'));
@@ -108,7 +125,7 @@ export default function TeamViewPanel() {
     setErr(null);
     try {
       const out = await api.team.analyze({ squad: ids });
-      setRes(out);
+      setRes(out); // inga availability-data i detta läge – visas som "—"
     } catch (e) {
       setErr(e);
     } finally {
@@ -145,11 +162,11 @@ export default function TeamViewPanel() {
             Analyze
           </button>
 
-          {/* ⬇️ NYTT: knapp för ditt riktiga lag */}
           <button
             onClick={analyzeMyTeam}
             disabled={!hasTeam}
             className={`px-3 py-2 rounded-lg ${hasTeam ? 'bg-blue-600 text-white' : 'bg-neutral-800 text-neutral-500'}`}
+            title={hasTeam ? 'Analysera importerade laget' : 'Importera lag högst upp först'}
           >
             Use My Team
           </button>
@@ -162,6 +179,7 @@ export default function TeamViewPanel() {
           <span
             key={p.id}
             className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-xs"
+            title={p.availability?.news}
           >
             {p.web_name} <span className="text-neutral-400">· {p.team}</span>
             <button onClick={() => removeId(p.id)} className="text-neutral-400 hover:text-neutral-200">×</button>
